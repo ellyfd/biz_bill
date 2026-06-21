@@ -1,0 +1,17 @@
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root { height: 100%; }
+body { margin: 0; -webkit-font-smoothing: antialiased; }
+
+.ff { font-family: 'Inter', system-ui, sans-serif; }
+.fd { font-family: 'Bricolage Grotesque', 'Inter', sans-serif; }
+.tnum { font-variant-numeric: tabular-nums; }
+
+@keyframes pop { 0% { transform: scale(.96); opacity: .4 } 100% { transform: scale(1); opacity: 1 } }
+.pop { animation: pop .18s ease-out; }
+
+@media (prefers-reduced-motion: reduce) { .pop { animation: none; } }
