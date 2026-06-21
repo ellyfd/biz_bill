@@ -112,15 +112,23 @@ function parseReceipt(txt) {
   const dm = txt.match(/(20\d{2})[-/.](\d{1,2})[-/.](\d{1,2})/) ||
              txt.match(/(\d{1,2})[-/.](\d{1,2})[-/.](20\d{2}|\d{2})/);
   if (dm) {
-    let mo, da;
-    if (dm[1].length === 4) { mo = dm[2]; da = dm[3]; }
+    let y, mo, da;
+    if (dm[1].length === 4) { y = +dm[1]; mo = +dm[2]; da = +dm[3]; }
     else {
       const a1 = +dm[1], a2 = +dm[2];
+      y = +dm[3]; if (y < 100) y += 2000;
       if (a1 > 12) { da = a1; mo = a2; } else if (a2 > 12) { mo = a1; da = a2; } else { da = a1; mo = a2; }
     }
-    date = parseInt(mo, 10) + "/" + parseInt(da, 10);
+    if (mo >= 1 && mo <= 12 && da >= 1 && da <= 31)
+      date = `${y}-${String(mo).padStart(2, "0")}-${String(da).padStart(2, "0")}`;
   }
   return { amt, date };
+}
+
+/* local YYYY-MM-DD for "today" */
+const todayISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 export default function App() {
@@ -137,6 +145,7 @@ export default function App() {
   const [photo, setPhoto] = useState(null); // 收據照片(dataURL);有照片=有收據,沒拍=要印
   const [viewPhoto, setViewPhoto] = useState(null); // 全螢幕檢視中的收據
   const [ocrStatus, setOcrStatus] = useState(""); // "" | running | done | fail
+  const [date, setDate] = useState(todayISO); // 每筆真正的日期
   const [note, setNote] = useState("");
   const [showNote, setShowNote] = useState(false);
   const [showCur, setShowCur] = useState(false);
@@ -177,7 +186,7 @@ export default function App() {
   };
 
   const resetForm = () => {
-    setAmount("0"); setCat(null); setPeople(1); setPhoto(null); setNote(""); setShowNote(false); setOcrStatus("");
+    setAmount("0"); setCat(null); setPeople(1); setPhoto(null); setNote(""); setShowNote(false); setOcrStatus(""); setDate(todayISO());
   };
 
   const save = () => {
@@ -187,14 +196,14 @@ export default function App() {
       setExpenses((xs) =>
         xs.map((e) =>
           e.id === editingId
-            ? { ...e, cat, cur, amt: amtNum, pay, people, receipt, photo, note: note.trim() }
+            ? { ...e, cat, cur, amt: amtNum, pay, people, receipt, photo, date, note: note.trim() }
             : e
         )
       );
       setEditingId(null);
     } else {
       setExpenses((xs) => [
-        { id: Date.now(), cat, cur, amt: amtNum, pay, people, receipt, photo, note: note.trim() },
+        { id: Date.now(), cat, cur, amt: amtNum, pay, people, receipt, photo, date, note: note.trim() },
         ...xs,
       ]);
     }
@@ -234,7 +243,7 @@ export default function App() {
       .then(({ data }) => {
         const { amt, date } = parseReceipt(data.text);
         if (amt != null) setAmount(String(amt));
-        if (date) setNote((prev) => prev || date);
+        if (date) setDate(date);
         setOcrStatus(amt != null ? "done" : "fail");
       })
       .catch(() => setOcrStatus("fail"));
@@ -243,7 +252,7 @@ export default function App() {
   /* tap a logged row → load it into the form for editing */
   const startEdit = (e) => {
     setAmount(String(e.amt)); setCur(e.cur); setCat(e.cat); setPay(e.pay);
-    setPeople(e.people); setPhoto(e.photo || null); setOcrStatus("");
+    setPeople(e.people); setPhoto(e.photo || null); setOcrStatus(""); setDate(e.date || todayISO());
     setNote(e.note || ""); setShowNote(!!(e.note && e.note.length));
     setEditingId(e.id);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -455,6 +464,14 @@ export default function App() {
             </p>
           )}
 
+          {/* per-entry date (defaults to today; OCR fills it) */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "2px 0" }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "#a8a29e" }}>日期</span>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+              className="rounded-xl bg-white border border-stone-200 px-3 py-1.5 text-sm outline-none"
+              style={{ fontSize: 14 }} />
+          </div>
+
           {/* note field is always visible; hint adapts to the chosen category */}
           <input value={note} onChange={(e) => setNote(e.target.value)}
             placeholder={NOTE_HINTS[cat] || "備註(選填)— 寫清楚方便報帳"}
@@ -524,6 +541,11 @@ export default function App() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <span className="text-sm font-semibold text-stone-800">{e.cat}</span>
+                      {e.date && (
+                        <span className="text-[10px] font-medium text-stone-400 tnum">
+                          {+e.date.slice(5, 7)}/{+e.date.slice(8, 10)}
+                        </span>
+                      )}
                       {e.people > 1 && (
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md tnum"
                               style={{ background: "#1C1C1A", color: "#fff" }}>{e.people}人</span>
