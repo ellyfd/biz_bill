@@ -68,7 +68,7 @@ export default function App() {
   const [cat, setCat] = useState(null);
   const [pay, setPay] = useState("付現");
   const [people, setPeople] = useState(1);
-  const [receipt, setReceipt] = useState("無"); // 無 / 有 / 要印
+  const [photo, setPhoto] = useState(null); // 收據照片(dataURL);有照片=有收據,沒拍=要印
   const [note, setNote] = useState("");
   const [showNote, setShowNote] = useState(false);
   const [showCur, setShowCur] = useState(false);
@@ -108,23 +108,24 @@ export default function App() {
   };
 
   const resetForm = () => {
-    setAmount("0"); setCat(null); setPeople(1); setReceipt("無"); setNote(""); setShowNote(false);
+    setAmount("0"); setCat(null); setPeople(1); setPhoto(null); setNote(""); setShowNote(false);
   };
 
   const save = () => {
     if (!canSave) return;
+    const receipt = photo ? "有" : "要印"; // 有拍=有收據,沒拍=要印(不用手選)
     if (editingId != null) {
       setExpenses((xs) =>
         xs.map((e) =>
           e.id === editingId
-            ? { ...e, cat, cur, amt: amtNum, pay, people, receipt, note: note.trim() }
+            ? { ...e, cat, cur, amt: amtNum, pay, people, receipt, photo, note: note.trim() }
             : e
         )
       );
       setEditingId(null);
     } else {
       setExpenses((xs) => [
-        { id: Date.now(), cat, cur, amt: amtNum, pay, people, receipt, note: note.trim() },
+        { id: Date.now(), cat, cur, amt: amtNum, pay, people, receipt, photo, note: note.trim() },
         ...xs,
       ]);
     }
@@ -133,10 +134,31 @@ export default function App() {
     resetForm();
   };
 
+  /* 隨拍隨記:拍/選一張收據,壓縮後存成 dataURL */
+  const attachPhoto = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        const MAX = 900;
+        if (w > h && w > MAX) { h = Math.round((h * MAX) / w); w = MAX; }
+        else if (h > MAX) { w = Math.round((w * MAX) / h); h = MAX; }
+        const cv = document.createElement("canvas");
+        cv.width = w; cv.height = h;
+        cv.getContext("2d").drawImage(img, 0, 0, w, h);
+        setPhoto(cv.toDataURL("image/jpeg", 0.55));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
   /* tap a logged row → load it into the form for editing */
   const startEdit = (e) => {
     setAmount(String(e.amt)); setCur(e.cur); setCat(e.cat); setPay(e.pay);
-    setPeople(e.people); setReceipt(e.receipt);
+    setPeople(e.people); setPhoto(e.photo || null);
     setNote(e.note || ""); setShowNote(!!(e.note && e.note.length));
     setEditingId(e.id);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -185,7 +207,7 @@ export default function App() {
 
         {/* ── amount hero + currency stamp ── */}
         <div className="px-5">
-          <div className="bg-white rounded-3xl border border-stone-200 px-5 pt-5 pb-4 shadow-sm relative overflow-hidden">
+          <div className="bg-white rounded-3xl border border-stone-200 px-5 pt-5 pb-4 shadow-sm relative">
             <div className="flex items-start justify-between">
               <span className="text-xs font-semibold text-stone-400 mt-1">記一筆</span>
               {/* currency stamp = the signature → tap to pick any currency */}
@@ -241,7 +263,7 @@ export default function App() {
             </div>
 
             {flash && (
-              <div className="absolute inset-0 flex items-center justify-center pop"
+              <div className="absolute inset-0 flex items-center justify-center pop rounded-3xl overflow-hidden"
                    style={{ background: "rgba(255,255,255,.82)" }}>
                 <div className="flex items-center gap-2 font-semibold" style={{ color: accent }}>
                   <Check size={22} strokeWidth={3} /> 已存
@@ -302,22 +324,25 @@ export default function App() {
               </button>
             </div>
 
-            {/* receipt status */}
-            <button onClick={() => setReceipt(receipt === "有" ? "無" : "有")}
+            {/* 收據 = 隨拍隨記。拍了就是有收據,沒拍的存檔自動標「要印」 */}
+            <button onClick={() => document.getElementById("bbphoto")?.click()}
               className="flex-1 flex items-center justify-center gap-1.5 rounded-xl py-1.5 text-xs font-semibold transition active:scale-95 border"
-              style={receipt === "有"
+              style={photo
                 ? { background: "#1C6B4733", borderColor: "#1C6B47", color: "#13653f" }
                 : { background: "#fff", borderColor: "#E7E5DF", color: "#78716C" }}>
-              {receipt === "有" ? <Check size={14} strokeWidth={2.6} /> : <Camera size={14} strokeWidth={2.2} />}
-              {receipt === "有" ? "有收據" : "附收據"}
+              {photo ? <Check size={14} strokeWidth={2.6} /> : <Camera size={14} strokeWidth={2.2} />}
+              {photo ? "已拍收據" : "拍收據"}
             </button>
-            <button onClick={() => setReceipt(receipt === "要印" ? "無" : "要印")}
-              className="flex items-center justify-center gap-1 rounded-xl px-3 py-1.5 text-xs font-semibold transition active:scale-95 border"
-              style={receipt === "要印"
-                ? { background: "#C2410C22", borderColor: "#C2410C", color: "#9a3412" }
-                : { background: "#fff", borderColor: "#E7E5DF", color: "#78716C" }}>
-              <Printer size={14} strokeWidth={2.2} /> 要印
-            </button>
+            {photo && (
+              <div className="relative shrink-0">
+                <img src={photo} alt="收據" className="w-9 h-9 rounded-lg object-cover border border-stone-200" />
+                <button onClick={() => setPhoto(null)}
+                  className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-stone-800 text-white text-[9px] flex items-center justify-center">✕</button>
+              </div>
+            )}
+            <input id="bbphoto" type="file" accept="image/*" capture="environment"
+              style={{ display: "none" }}
+              onChange={(e) => { attachPhoto(e.target.files && e.target.files[0]); e.target.value = ""; }} />
           </div>
 
           {showNote ? (
@@ -387,6 +412,7 @@ export default function App() {
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md"
                               style={{ background: "#C2410C22", color: "#9a3412" }}>要印</span>
                       )}
+                      {e.photo && <span className="text-[11px] leading-none">📷</span>}
                     </div>
                     <div className="text-[11px] text-stone-400 truncate">
                       {e.pay}{e.note ? ` · ${e.note}` : ""}
