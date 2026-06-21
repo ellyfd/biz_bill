@@ -57,6 +57,17 @@ const toTWD = (amt, cur) => Math.round(amt * (RATES[cur] ?? 1));
 
 const STORE_KEY = "biz_bill_v1";
 
+/* per-category note hints, e.g. 車資 → 地鐵票 */
+const NOTE_HINTS = {
+  "餐飲": "備註 — 例:跟客戶午餐、團隊聚餐",
+  "車資": "備註 — 例:地鐵票、計程車、Uber",
+  "住宿": "備註 — 例:旅館、Airbnb",
+  "機票": "備註 — 例:長榮 TPE-NRT",
+  "電信網路": "備註 — 例:eSIM、漫遊上網",
+  "簽證費": "備註 — 例:申根簽證",
+  "禮品費": "備註 — 例:客戶伴手禮",
+};
+
 export default function App() {
   const [expenses, setExpenses] = useState(() => {
     try { const s = localStorage.getItem(STORE_KEY); return s ? JSON.parse(s) : SEED; }
@@ -69,6 +80,7 @@ export default function App() {
   const [pay, setPay] = useState("付現");
   const [people, setPeople] = useState(1);
   const [photo, setPhoto] = useState(null); // 收據照片(dataURL);有照片=有收據,沒拍=要印
+  const [viewPhoto, setViewPhoto] = useState(null); // 全螢幕檢視中的收據
   const [note, setNote] = useState("");
   const [showNote, setShowNote] = useState(false);
   const [showCur, setShowCur] = useState(false);
@@ -173,6 +185,14 @@ export default function App() {
 
   return (
     <div className="ff min-h-screen w-full flex justify-center" style={{ background: "#EDEBE4" }}>
+      {/* tap a receipt to view it full-screen */}
+      {viewPhoto && (
+        <div onClick={() => setViewPhoto(null)}
+          style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(0,0,0,.9)",
+                   display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <img src={viewPhoto} alt="收據" style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: 12 }} />
+        </div>
+      )}
       <div className="w-full max-w-md flex flex-col" style={{ background: "#F6F5F1" }}>
 
         {/* ── trip header / live 自動總結 ── */}
@@ -335,7 +355,8 @@ export default function App() {
             </button>
             {photo && (
               <div className="relative shrink-0">
-                <img src={photo} alt="收據" className="w-9 h-9 rounded-lg object-cover border border-stone-200" />
+                <img src={photo} alt="收據" onClick={() => setViewPhoto(photo)}
+                     className="w-9 h-9 rounded-lg object-cover border border-stone-200" />
                 <button onClick={() => setPhoto(null)}
                   className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-stone-800 text-white text-[9px] flex items-center justify-center">✕</button>
               </div>
@@ -345,17 +366,11 @@ export default function App() {
               onChange={(e) => { attachPhoto(e.target.files && e.target.files[0]); e.target.value = ""; }} />
           </div>
 
-          {showNote ? (
-            <input autoFocus value={note} onChange={(e) => setNote(e.target.value)}
-              placeholder="備註(選填)— 例:跟 Alan、Vanessa 晚餐"
-              className="w-full rounded-xl bg-white border border-stone-200 px-3 py-2 text-sm outline-none"
-              style={{ caretColor: accent }} />
-          ) : (
-            <button onClick={() => setShowNote(true)}
-              className="text-xs font-medium text-stone-400 flex items-center gap-1 active:text-stone-600">
-              <Plus size={13} strokeWidth={2.4} /> 加備註
-            </button>
-          )}
+          {/* note field is always visible; hint adapts to the chosen category */}
+          <input value={note} onChange={(e) => setNote(e.target.value)}
+            placeholder={NOTE_HINTS[cat] || "備註(選填)— 寫清楚方便報帳"}
+            className="w-full rounded-xl bg-white border border-stone-200 px-3 py-2 text-sm outline-none"
+            style={{ caretColor: accent }} />
         </div>
 
         {/* ── keypad ── */}
@@ -412,7 +427,11 @@ export default function App() {
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md"
                               style={{ background: "#C2410C22", color: "#9a3412" }}>要印</span>
                       )}
-                      {e.photo && <span className="text-[11px] leading-none">📷</span>}
+                      {e.photo && (
+                        <img src={e.photo} alt="收據"
+                          onClick={(ev) => { ev.stopPropagation(); setViewPhoto(e.photo); }}
+                          style={{ width: 28, height: 28, borderRadius: 6, objectFit: "cover", border: "1px solid #E7E5DF" }} />
+                      )}
                     </div>
                     <div className="text-[11px] text-stone-400 truncate">
                       {e.pay}{e.note ? ` · ${e.note}` : ""}
