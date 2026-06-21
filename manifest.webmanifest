@@ -1,0 +1,16 @@
+{
+  "name": "出差報帳 · biz_bill",
+  "short_name": "出差報帳",
+  "description": "出差報帳小工具 — 三秒記帳、多幣別、自動換算 TWD",
+  "lang": "zh-Hant",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F6F5F1",
+  "theme_color": "#F6F5F1",
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
