@@ -68,6 +68,61 @@ const NOTE_HINTS = {
   "禮品費": "備註 — 例:客戶伴手禮",
 };
 
+/* lazy-load the on-device OCR engine only when first needed */
+let _tess = null;
+function loadTesseract() {
+  return _tess || (_tess = new Promise((res, rej) => {
+    if (window.Tesseract) return res(window.Tesseract);
+    const sc = document.createElement("script");
+    sc.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+    sc.onload = () => res(window.Tesseract);
+    sc.onerror = () => rej(new Error("tesseract"));
+    document.head.appendChild(sc);
+  }));
+}
+
+/* normalize a money string: "1.234,56" / "1,234.56" / "153,97" → Number */
+function parseMoney(s) {
+  s = (s || "").replace(/[^\d.,]/g, "");
+  if (!s) return NaN;
+  const k = Math.max(s.lastIndexOf(","), s.lastIndexOf("."));
+  if (k < 0) return parseFloat(s);
+  const ip = s.slice(0, k).replace(/[.,]/g, "");
+  const fp = s.slice(k + 1).replace(/[.,]/g, "");
+  return fp.length > 2 ? parseFloat(ip + fp) : parseFloat(ip + "." + fp);
+}
+
+/* best-effort amount + date extraction from receipt OCR text */
+function parseReceipt(txt) {
+  txt = txt || "";
+  const kw = /(total|montant|amount|summe|suma|importe|gesamt|合計|總計|总计|総額|ttc|grand)/i;
+  let amt = null;
+  for (const ln of txt.split(/\r?\n/)) {
+    if (kw.test(ln)) {
+      const m = ln.match(/\d[\d.,]*/g);
+      if (m) { const v = parseMoney(m[m.length - 1]); if (!isNaN(v) && v > 0) amt = v; }
+    }
+  }
+  if (amt == null) {
+    for (const x of (txt.match(/\d[\d.,]*[.,]\d{2}(?!\d)/g) || [])) {
+      const v = parseMoney(x); if (!isNaN(v) && v > 0 && (amt == null || v > amt)) amt = v;
+    }
+  }
+  let date = "";
+  const dm = txt.match(/(20\d{2})[-/.](\d{1,2})[-/.](\d{1,2})/) ||
+             txt.match(/(\d{1,2})[-/.](\d{1,2})[-/.](20\d{2}|\d{2})/);
+  if (dm) {
+    let mo, da;
+    if (dm[1].length === 4) { mo = dm[2]; da = dm[3]; }
+    else {
+      const a1 = +dm[1], a2 = +dm[2];
+      if (a1 > 12) { da = a1; mo = a2; } else if (a2 > 12) { mo = a1; da = a2; } else { da = a1; mo = a2; }
+    }
+    date = parseInt(mo, 10) + "/" + parseInt(da, 10);
+  }
+  return { amt, date };
+}
+
 export default function App() {
   const [expenses, setExpenses] = useState(() => {
     try { const s = localStorage.getItem(STORE_KEY); return s ? JSON.parse(s) : SEED; }
@@ -81,6 +136,7 @@ export default function App() {
   const [people, setPeople] = useState(1);
   const [photo, setPhoto] = useState(null); // 收據照片(dataURL);有照片=有收據,沒拍=要印
   const [viewPhoto, setViewPhoto] = useState(null); // 全螢幕檢視中的收據
+  const [ocrStatus, setOcrStatus] = useState(""); // "" | running | done | fail
   const [note, setNote] = useState("");
   const [showNote, setShowNote] = useState(false);
   const [showCur, setShowCur] = useState(false);
@@ -120,7 +176,7 @@ export default function App() {
   };
 
   const resetForm = () => {
-    setAmount("0"); setCat(null); setPeople(1); setPhoto(null); setNote(""); setShowNote(false);
+    setAmount("0"); setCat(null); setPeople(1); setPhoto(null); setNote(""); setShowNote(false); setOcrStatus("");
   };
 
   const save = () => {
@@ -160,17 +216,33 @@ export default function App() {
         const cv = document.createElement("canvas");
         cv.width = w; cv.height = h;
         cv.getContext("2d").drawImage(img, 0, 0, w, h);
-        setPhoto(cv.toDataURL("image/jpeg", 0.55));
+        const dataUrl = cv.toDataURL("image/jpeg", 0.55);
+        setPhoto(dataUrl);
+        runOcr(dataUrl); // 隨拍隨記:自動辨識金額/日期
       };
       img.src = reader.result;
     };
     reader.readAsDataURL(file);
   };
 
+  /* on-device OCR: pre-fill amount, and date into the note */
+  const runOcr = (dataUrl) => {
+    setOcrStatus("running");
+    loadTesseract()
+      .then((T) => T.recognize(dataUrl, "eng"))
+      .then(({ data }) => {
+        const { amt, date } = parseReceipt(data.text);
+        if (amt != null) setAmount(String(amt));
+        if (date) setNote((prev) => prev || date);
+        setOcrStatus(amt != null ? "done" : "fail");
+      })
+      .catch(() => setOcrStatus("fail"));
+  };
+
   /* tap a logged row → load it into the form for editing */
   const startEdit = (e) => {
     setAmount(String(e.amt)); setCur(e.cur); setCat(e.cat); setPay(e.pay);
-    setPeople(e.people); setPhoto(e.photo || null);
+    setPeople(e.people); setPhoto(e.photo || null); setOcrStatus("");
     setNote(e.note || ""); setShowNote(!!(e.note && e.note.length));
     setEditingId(e.id);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -351,7 +423,7 @@ export default function App() {
                 ? { background: "#1C6B4733", borderColor: "#1C6B47", color: "#13653f" }
                 : { background: "#fff", borderColor: "#E7E5DF", color: "#78716C" }}>
               {photo ? <Check size={14} strokeWidth={2.6} /> : <Camera size={14} strokeWidth={2.2} />}
-              {photo ? "已拍收據" : "拍收據"}
+              {ocrStatus === "running" ? "辨識中…" : photo ? "已拍收據" : "拍收據"}
             </button>
             {photo && (
               <div className="relative shrink-0">
@@ -365,6 +437,14 @@ export default function App() {
               style={{ display: "none" }}
               onChange={(e) => { attachPhoto(e.target.files && e.target.files[0]); e.target.value = ""; }} />
           </div>
+
+          {ocrStatus && (
+            <p style={{ fontSize: 12, fontWeight: 600, margin: "-2px 2px 0",
+                        color: ocrStatus === "done" ? "#13653f" : ocrStatus === "fail" ? "#9a3412" : "#78716C" }}>
+              {ocrStatus === "running" ? "辨識中…第一次要下載辨識引擎,稍等一下"
+                : ocrStatus === "done" ? "✓ 已自動帶入金額/日期,請確認" : "辨識不到,手動輸入就好"}
+            </p>
+          )}
 
           {/* note field is always visible; hint adapts to the chosen category */}
           <input value={note} onChange={(e) => setNote(e.target.value)}
