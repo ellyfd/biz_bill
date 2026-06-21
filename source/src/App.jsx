@@ -141,6 +141,7 @@ export default function App() {
   const [showNote, setShowNote] = useState(false);
   const [showCur, setShowCur] = useState(false);
   const [flash, setFlash] = useState(false);
+  const [showPad, setShowPad] = useState(false); // 計算機改成點金額才彈出
 
   /* persist every change so refresh / 重開 App 不會掉帳 */
   useEffect(() => {
@@ -344,7 +345,8 @@ export default function App() {
               </div>
             </div>
 
-            <div className="flex items-baseline gap-1.5 mt-1.5">
+            <div onClick={() => setShowPad(true)} style={{ cursor: "pointer" }}
+                 className="flex items-baseline gap-1.5 mt-1.5">
               <span className="fd text-3xl font-semibold tnum" style={{ color: accent }}>{CUR[cur].sym}</span>
               <span className="fd text-6xl font-bold tnum leading-none break-all" style={{ color: accent }}>
                 {amount === "0" ? "0" : amount}
@@ -353,6 +355,13 @@ export default function App() {
             <div className="text-xs text-stone-400 font-medium mt-1.5 tnum">
               ≈ NT${fmt(toTWD(amtNum, cur))}
             </div>
+            {!showPad && amount === "0" && (
+              <button onClick={() => setShowPad(true)}
+                style={{ fontSize: 12, fontWeight: 700, color: accent, marginTop: 8,
+                         border: `1px solid ${accent}`, borderRadius: 999, padding: "4px 12px" }}>
+                ⌨ 點開鍵盤輸入金額
+              </button>
+            )}
 
             {flash && (
               <div className="absolute inset-0 flex items-center justify-center pop rounded-3xl overflow-hidden"
@@ -453,19 +462,35 @@ export default function App() {
             style={{ caretColor: accent }} />
         </div>
 
-        {/* ── keypad ── */}
-        <div className="px-5 pt-3">
-          <div className="grid grid-cols-3 gap-2">
-            {["1","2","3","4","5","6","7","8","9",".","0","del"].map((k) => (
-              <button key={k} onClick={() => press(k)}
-                className="bg-white rounded-2xl py-3.5 flex items-center justify-center active:scale-95 transition border border-stone-200 shadow-sm">
-                {k === "del"
-                  ? <Delete size={20} className="text-stone-500" strokeWidth={2} />
-                  : <span className="fd text-2xl font-semibold text-stone-800 tnum">{k}</span>}
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* ── keypad: pops up from the bottom only when the amount is tapped ── */}
+        {showPad && (
+          <>
+            <div onClick={() => setShowPad(false)}
+                 style={{ position: "fixed", inset: 0, zIndex: 40, background: "rgba(0,0,0,.25)" }} />
+            <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
+                          width: "100%", maxWidth: 448, zIndex: 50, background: "#F6F5F1",
+                          borderTopLeftRadius: 20, borderTopRightRadius: 20,
+                          boxShadow: "0 -8px 30px -10px rgba(0,0,0,.25)", padding: "8px 0 14px" }}>
+              <div className="flex items-center justify-between px-5 pb-1">
+                <span style={{ fontSize: 12, fontWeight: 600, color: "#a8a29e" }}>輸入金額 · {CUR[cur].code}</span>
+                <button onClick={() => setShowPad(false)}
+                        style={{ fontSize: 15, fontWeight: 700, color: accent, padding: "6px 10px" }}>完成</button>
+              </div>
+              <div className="px-5 pt-1">
+                <div className="grid grid-cols-3 gap-2">
+                  {["1","2","3","4","5","6","7","8","9",".","0","del"].map((k) => (
+                    <button key={k} onClick={() => press(k)}
+                      className="bg-white rounded-2xl py-3.5 flex items-center justify-center active:scale-95 transition border border-stone-200 shadow-sm">
+                      {k === "del"
+                        ? <Delete size={20} className="text-stone-500" strokeWidth={2} />
+                        : <span className="fd text-2xl font-semibold text-stone-800 tnum">{k}</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
 
         {/* ── save ── */}
         <div className="px-5 pt-3 pb-4">
