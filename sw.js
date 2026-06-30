@@ -1,7 +1,7 @@
 /* biz_bill service worker — offline + installable.
    HTML is network-first (so updates always show, never trapping a stale page);
    static assets are cache-first. Bump CACHE to invalidate. */
-const CACHE = "biz-bill-v1";
+const CACHE = "biz-bill-v2";
 const ASSETS = [
   "./",
   "./index.html",

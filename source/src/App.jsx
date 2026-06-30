@@ -271,14 +271,15 @@ export default function App() {
       {viewPhoto && (
         <div onClick={() => setViewPhoto(null)}
           style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(0,0,0,.9)",
-                   display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+                   display: "flex", alignItems: "center", justifyContent: "center",
+                   padding: "calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom))" }}>
           <img src={viewPhoto} alt="收據" style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: 12 }} />
         </div>
       )}
       <div className="w-full max-w-md flex flex-col" style={{ background: "#F6F5F1" }}>
 
         {/* ── trip header / live 自動總結 ── */}
-        <div className="px-5 pt-6 pb-4">
+        <div className="px-5 pt-safe pb-4">
           <div className="flex items-center gap-1.5 text-stone-500 text-xs font-medium">
             <MapPin size={13} strokeWidth={2.4} />
             <span>{TRIP.period}</span><span>·</span><span>{TRIP.range}</span>
@@ -487,7 +488,8 @@ export default function App() {
             <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
                           width: "100%", maxWidth: 448, zIndex: 50, background: "#F6F5F1",
                           borderTopLeftRadius: 20, borderTopRightRadius: 20,
-                          boxShadow: "0 -8px 30px -10px rgba(0,0,0,.25)", padding: "8px 0 14px" }}>
+                          boxShadow: "0 -8px 30px -10px rgba(0,0,0,.25)",
+                          padding: "8px 0 calc(14px + env(safe-area-inset-bottom))" }}>
               <div className="flex items-center justify-between px-5 pb-1">
                 <span style={{ fontSize: 12, fontWeight: 600, color: "#a8a29e" }}>輸入金額 · {CUR[cur].code}</span>
                 <button onClick={() => setShowPad(false)}
@@ -523,7 +525,7 @@ export default function App() {
         </div>
 
         {/* ── logged list ── */}
-        <div className="px-5 pb-8">
+        <div className="px-5 pb-safe">
           <div className="text-xs font-semibold text-stone-400 mb-2 px-1">
             這趟記了 {expenses.length} 筆
           </div>

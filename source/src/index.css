@@ -5,7 +5,27 @@
 @tailwind utilities;
 
 html, body, #root { height: 100%; }
-body { margin: 0; -webkit-font-smoothing: antialiased; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  /* match the app shell so the standalone launch / overscroll never flashes white */
+  background: #EDEBE4;
+  -webkit-font-smoothing: antialiased;
+  /* native-app feel on iOS standalone: no rubber-band / pull-to-refresh, no tap flash,
+     no 300ms double-tap delay */
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+* { -webkit-tap-highlight-color: transparent; }
+/* app chrome shouldn't show the long-press callout / text-selection menu… */
+button { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+/* …but real inputs stay selectable */
+input, textarea { -webkit-user-select: text; user-select: text; }
+
+/* iOS notch / home-indicator safe areas */
+.pt-safe { padding-top: calc(env(safe-area-inset-top) + 1.5rem); }
+.pb-safe { padding-bottom: calc(env(safe-area-inset-bottom) + 2rem); }
 
 .ff { font-family: 'Inter', system-ui, sans-serif; }
 .fd { font-family: 'Bricolage Grotesque', 'Inter', sans-serif; }
