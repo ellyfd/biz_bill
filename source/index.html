@@ -25,5 +25,113 @@
         });
       }
     </script>
+    <script>
+      /* biz_bill 完整備份 / 還原 — 自包含,不依賴主程式。
+         把所有 bb_* / biz_bill* 的 localStorage 存成一個 JSON 檔(可放 iCloud 雲碟),
+         在別的裝置或主畫面 App 匯入即可還原。iOS 上 Safari 與主畫面圖示的儲存是分開的,
+         這個檔案就是兩者之間搬資料的橋。 */
+      (function () {
+        "use strict";
+        var RE = /^(bb_|biz_bill)/;
+        function collect() {
+          var o = {};
+          for (var i = 0; i < localStorage.length; i++) {
+            var k = localStorage.key(i);
+            if (RE.test(k)) o[k] = localStorage.getItem(k);
+          }
+          return o;
+        }
+        function stamp() {
+          var d = new Date(), p = function (n) { return (n < 10 ? "0" : "") + n; };
+          return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+        }
+        function fallbackDownload(json, name) {
+          var blob = new Blob([json], { type: "application/json" });
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement("a");
+          a.href = url; a.download = name;
+          document.body.appendChild(a); a.click();
+          setTimeout(function () { a.remove(); URL.revokeObjectURL(url); }, 1500);
+        }
+        function doExport() {
+          var data = collect(), n = Object.keys(data).length;
+          if (!n) {
+            alert("這個情境目前沒有資料可以備份。\n（提醒:Safari 與主畫面圖示的資料是分開的,請在有資料的那邊匯出。)");
+            return;
+          }
+          var payload = { app: "biz_bill", type: "backup", version: 1, exportedAt: new Date().toISOString(), data: data };
+          var json = JSON.stringify(payload, null, 2);
+          var name = "biz_bill_備份_" + stamp() + ".json";
+          try {
+            var file = new File([json], name, { type: "application/json" });
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              navigator.share({ files: [file], title: "biz_bill 備份" }).catch(function (err) {
+                if (!err || err.name !== "AbortError") fallbackDownload(json, name);
+              });
+              return;
+            }
+          } catch (e) { /* fall through to download */ }
+          fallbackDownload(json, name);
+        }
+        function doImport(file) {
+          var r = new FileReader();
+          r.onload = function () {
+            var obj;
+            try { obj = JSON.parse(r.result); } catch (e) { alert("這個檔案不是有效的備份(JSON 解析失敗)。"); return; }
+            var data = obj && obj.data;
+            var keys = data && typeof data === "object" ? Object.keys(data).filter(function (k) { return RE.test(k); }) : [];
+            if (!keys.length) { alert("這個檔案看起來不是 biz_bill 的備份。"); return; }
+            if (!confirm("即將還原 " + keys.length + " 個項目,並覆蓋這個情境目前的資料。\n確定要繼續嗎?")) return;
+            var rm = [];
+            for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (RE.test(k)) rm.push(k); }
+            rm.forEach(function (k) { localStorage.removeItem(k); });
+            keys.forEach(function (k) { localStorage.setItem(k, data[k]); });
+            alert("還原完成,重新載入。");
+            location.reload();
+          };
+          r.onerror = function () { alert("讀取檔案失敗。"); };
+          r.readAsText(file);
+        }
+        function el(tag, css, text) {
+          var e = document.createElement(tag);
+          if (css) e.style.cssText = css;
+          if (text != null) e.textContent = text;
+          return e;
+        }
+        function openModal() {
+          var ov = el("div", "position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;padding:24px;");
+          var card = el("div", "width:100%;max-width:360px;background:#F6F5F1;border-radius:20px;padding:20px;box-shadow:0 20px 50px -20px rgba(0,0,0,.5);font-family:'Inter',system-ui,sans-serif;");
+          var h = el("div", "font-size:17px;font-weight:800;color:#1c1917;margin-bottom:6px;", "備份 / 還原");
+          var p = el("div", "font-size:12.5px;line-height:1.6;color:#78716C;margin-bottom:16px;white-space:pre-line;",
+            "把所有出差與帳目存成一個檔(可存到「檔案 App / iCloud 雲碟」),在別的裝置或主畫面 App 匯入即可還原。\n⚠️ iOS 上 Safari 與主畫面圖示的資料是分開的。");
+          var bExp = el("button", "width:100%;padding:13px;border-radius:14px;border:none;background:#1c1917;color:#fff;font-size:15px;font-weight:700;margin-bottom:10px;", "⬇  匯出完整備份");
+          var bImp = el("button", "width:100%;padding:13px;border-radius:14px;border:1px solid #D6D3CD;background:#fff;color:#1c1917;font-size:15px;font-weight:700;margin-bottom:14px;", "⬆  匯入備份還原");
+          var bClose = el("button", "width:100%;padding:10px;border:none;background:transparent;color:#78716C;font-size:14px;font-weight:600;", "關閉");
+          var fi = el("input"); fi.type = "file"; fi.accept = "application/json,.json"; fi.style.display = "none";
+          function close() { if (ov.parentNode) ov.parentNode.removeChild(ov); }
+          bExp.onclick = doExport;
+          bImp.onclick = function () { fi.click(); };
+          fi.onchange = function () { if (fi.files && fi.files[0]) { var f = fi.files[0]; close(); doImport(f); } };
+          bClose.onclick = close;
+          ov.onclick = function (e) { if (e.target === ov) close(); };
+          [h, p, bExp, bImp, bClose, fi].forEach(function (c) { card.appendChild(c); });
+          ov.appendChild(card);
+          document.body.appendChild(ov);
+        }
+        function build() {
+          if (document.getElementById("bb-backup-fab")) return;
+          var fab = el("button",
+            "position:fixed;left:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:30;width:42px;height:42px;border-radius:999px;border:1px solid #E7E5E4;background:#fff;color:#57534E;font-size:18px;box-shadow:0 4px 14px -6px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;",
+            "☁");
+          fab.id = "bb-backup-fab";
+          fab.title = "備份 / 還原";
+          fab.setAttribute("aria-label", "備份 / 還原");
+          fab.onclick = openModal;
+          document.body.appendChild(fab);
+        }
+        if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", build);
+        else build();
+      })();
+    </script>
   </body>
 </html>
